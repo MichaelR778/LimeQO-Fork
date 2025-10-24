@@ -9,13 +9,14 @@ class GreedyStrategy(BaseStrategy):
     def __init__(self, new_observe_size=32):
         self.new_observe_size = new_observe_size
         
-    def run(self, dataset, output_path):
+    def run(self, dataset, output_path, max_duration):
         """
         Run greedy strategy with timeout
         
         Args:
             dataset: Dataset object containing query data
             output_path: Path to save results
+            max_duration: Max duration for offline exploration
         """
         mask = np.zeros_like(dataset.init_mask)
         for i in range(dataset.matrix.shape[0]):
@@ -28,8 +29,13 @@ class GreedyStrategy(BaseStrategy):
         timeout = 0
         results = []
         explore_queries = set()
+
+        def check_cond():
+            if max_duration > 0:
+                return exec_time < (max_duration + dataset.default_time)
+            return min_observed.sum() > dataset.opt_time + 20
         
-        while min_observed.sum() > dataset.opt_time + 20:
+        while check_cond():
             exec_time = dataset.get_exec_time(mask) + timeout
             min_observed = dataset.get_min_observed(dataset.matrix, mask)
             
@@ -57,7 +63,10 @@ class GreedyStrategy(BaseStrategy):
                     break
                     
                 file_i = selects[i]
-                if mask[file_i].sum() == mask.shape[1]:
+                # if mask[file_i].sum() == mask.shape[1]:
+                #     continue
+                mask_timeout_combined = np.maximum(mask[file_i], timeout_m[file_i])
+                if np.sum(mask_timeout_combined) == len(mask_timeout_combined):
                     continue
                     
                 while True:

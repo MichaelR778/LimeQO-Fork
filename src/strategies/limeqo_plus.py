@@ -17,13 +17,14 @@ class LimeQOPlusStrategy(BaseStrategy):
         self.new_observe_size = new_observe_size
         self.device = device
         
-    def run(self, dataset, output_path):
+    def run(self, dataset, output_path, max_duration):
         """
         Run LimeQO+ strategy
         
         Args:
             dataset: Dataset object containing query data
             output_path: Path to save results
+            max_duration: Max duration for offline exploration
         """
         mask = dataset.init_mask.copy()
         exec_time = dataset.get_exec_time(mask)
@@ -38,9 +39,15 @@ class LimeQOPlusStrategy(BaseStrategy):
         tcnn = TCNN(dataset.num_features, self.rank, 
                     dataset.matrix.shape[0], dataset.matrix.shape[1])
         tcnn = tcnn.to(self.device)
+
+        def check_cond():
+            if max_duration > 0:
+                return exec_time < (max_duration + dataset.default_time)
+            return min_observed.sum() > dataset.opt_time + 10
         
-        while min_observed.sum() > dataset.opt_time + 10:
+        while check_cond():
             exec_time = dataset.get_exec_time(mask) + timeout
+            print(f"curr = {exec_time}, target = {max_duration + dataset.default_time}") #debug
             min_observed = dataset.get_min_observed(dataset.matrix, mask)
             
             # Prepare training data
@@ -207,7 +214,7 @@ class LimeQOPlusStrategy(BaseStrategy):
                 pred = tcnn((data, idx), user_idxs, item_idxs)
                 label = label.to(self.device)
             
-                y_censored = torch.Tensor(len(label))
+                y_censored = torch.empty(len(label), device=self.device)
                 for i, mpos in enumerate(_mposes):
                     y_censored[i] = censored[mpos["row"], mpos["cols"][0]]
                 

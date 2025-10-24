@@ -15,13 +15,14 @@ class LimeQOStrategy(BaseStrategy):
         self.beta = beta
         self.new_observe_size = new_observe_size
         
-    def run(self, dataset, output_path):
+    def run(self, dataset, output_path, max_duration):
         """
         Run LimeQO strategy
         
         Args:
             dataset: Dataset object containing query data
             output_path: Path to save results
+            max_duration: Max duration for offline exploration
         """
         mask = dataset.init_mask.copy()
         exec_time = dataset.get_exec_time(mask)
@@ -31,8 +32,13 @@ class LimeQOStrategy(BaseStrategy):
         timeout = 0
         results = []
         explore_queries = set()
+
+        def check_cond():
+            if max_duration > 0:
+                return exec_time < (max_duration + dataset.default_time)
+            return min_observed.sum() > dataset.opt_time + 20
         
-        while min_observed.sum() > dataset.opt_time + 20:
+        while check_cond():
             exec_time = dataset.get_exec_time(mask) + timeout
             min_observed = dataset.get_min_observed(dataset.matrix, mask)
             

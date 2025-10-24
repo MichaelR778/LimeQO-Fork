@@ -9,13 +9,14 @@ class RandomStrategy(BaseStrategy):
     def __init__(self, new_observe_size=32):
         self.new_observe_size = new_observe_size
         
-    def run(self, dataset, output_path):
+    def run(self, dataset, output_path, max_duration):
         """
         Run random strategy with timeout
         
         Args:
             dataset: Dataset object containing query data
             output_path: Path to save results
+            max_duration: Max duration for offline exploration
         """
         mask = np.zeros_like(dataset.init_mask)
         for i in range(dataset.matrix.shape[0]):
@@ -28,8 +29,13 @@ class RandomStrategy(BaseStrategy):
         timeout = 0
         results = []
         explore_queries = set()
+
+        def check_cond():
+            if max_duration > 0:
+                return exec_time < (max_duration + dataset.default_time)
+            return min_observed.sum() > dataset.opt_time + 20
         
-        while min_observed.sum() > dataset.opt_time + 20:
+        while check_cond():
             exec_time = dataset.get_exec_time(mask) + timeout
             min_observed = dataset.get_min_observed(dataset.matrix, mask)
             
